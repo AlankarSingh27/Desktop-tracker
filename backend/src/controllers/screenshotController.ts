@@ -1,16 +1,16 @@
 import { Request, Response } from "express";
-import fs from "fs";
-import path from "path";
 import { Types } from "mongoose";
 import { Screenshot } from "../models/Screenshot";
 import { Device } from "../models/Device";
 import { asyncHandler, AppError } from "../middleware/errorHandler";
-import { env } from "../config/env";
+import { cloudinary } from "../config/cloudinary";
 
 /**
  * Agent uploads one screenshot at a time (multipart/form-data, field name
- * "screenshot"). Multer has already written the file to disk by the time
- * this handler runs - we just record its metadata.
+ * "screenshot"). Multer holds the file in memory (see config/upload.ts) -
+ * we stream that buffer straight to Cloudinary, under an "authenticated"
+ * delivery type so the resulting asset is NOT publicly reachable by a
+ * guessed URL, only via a signed URL we generate for a logged-in admin.
  */
 export const uploadScreenshot = asyncHandler(async (req: Request, res: Response) => {
   if (!req.agent) throw new AppError("Unauthenticated agent", 401);
@@ -18,18 +18,32 @@ export const uploadScreenshot = asyncHandler(async (req: Request, res: Response)
 
   const device = await Device.findOne({ deviceId: req.agent.deviceId });
   if (!device || !device.isActive) {
-    fs.unlink(req.file.path, () => {});
     throw new AppError("Device not recognized or deactivated", 403);
   }
 
   const capturedAt = req.body.capturedAt ? new Date(req.body.capturedAt) : new Date();
 
+  const uploadResult = await new Promise<{ public_id: string; bytes: number }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "image",
+        type: "authenticated", // not publicly accessible without a signed URL
+        folder: "emp-tracker/screenshots",
+      },
+      (err, result) => {
+        if (err || !result) return reject(err || new Error("Cloudinary upload failed"));
+        resolve({ public_id: result.public_id, bytes: result.bytes });
+      }
+    );
+    stream.end(req.file!.buffer);
+  });
+
   const screenshot = await Screenshot.create({
     employee: req.agent.employeeId,
     device: device._id,
-    filePath: req.file.filename, // store just the filename, join with configured dir on read
+    cloudinaryPublicId: uploadResult.public_id,
     capturedAt,
-    fileSizeBytes: req.file.size,
+    fileSizeBytes: uploadResult.bytes,
   });
 
   res.status(201).json({ id: screenshot._id, capturedAt: screenshot.capturedAt });
@@ -60,19 +74,23 @@ export const listScreenshots = asyncHandler(async (req: Request, res: Response) 
 });
 
 /**
- * Streams the actual image bytes. Gated by adminAuth (see route) so
- * screenshots are never reachable without a valid dashboard session -
- * unlike a plain express.static mount, which would make them guessable
- * and publicly fetchable.
+ * Redirects to a short-lived signed Cloudinary URL. Gated by adminAuth (see
+ * route) so screenshots are never reachable without a valid dashboard
+ * session - the underlying Cloudinary asset itself is also non-public
+ * (type: "authenticated"), so even a leaked Cloudinary URL without a valid
+ * signature won't load the image.
  */
 export const getScreenshotImage = asyncHandler(async (req: Request, res: Response) => {
   const screenshot = await Screenshot.findById(req.params.id);
   if (!screenshot) throw new AppError("Screenshot not found", 404);
 
-  const filePath = path.join(env.screenshotUploadDir, screenshot.filePath);
-  if (!fs.existsSync(filePath)) throw new AppError("Screenshot file missing on disk", 404);
+  const signedUrl = cloudinary.url(screenshot.cloudinaryPublicId, {
+    resource_type: "image",
+    type: "authenticated",
+    sign_url: true,
+    secure: true,
+    expires_at: Math.floor(Date.now() / 1000) + 300, // link valid 5 minutes
+  });
 
-  res.setHeader("Content-Type", "image/jpeg");
-  res.setHeader("Cache-Control", "private, max-age=3600");
-  fs.createReadStream(filePath).pipe(res);
+  res.redirect(302, signedUrl);
 });

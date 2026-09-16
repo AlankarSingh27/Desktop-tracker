@@ -1,35 +1,40 @@
-import fs from "fs";
-import path from "path";
 import { Screenshot } from "../models/Screenshot";
+import { cloudinary } from "../config/cloudinary";
 import { env } from "../config/env";
 
 /**
- * Screenshots have TWO parts: the DB record (auto-deleted by MongoDB's TTL
- * index) and the actual JPEG file on disk (which TTL indexes cannot touch).
- * This job finds screenshots older than the retention window, deletes their
- * file, then removes the DB record - keeping disk usage from growing
- * unbounded even though TTL alone would eventually orphan the files.
+ * Deletes both the Cloudinary asset and the DB record for screenshots
+ * older than the retention window. Deliberately not using a Mongo TTL
+ * index for this collection (see Screenshot.ts) - this job is the only
+ * thing that removes screenshots, so the Cloudinary asset never outlives
+ * the DB record that references it.
  */
 export async function cleanupExpiredScreenshots(): Promise<void> {
   const cutoff = new Date(Date.now() - env.screenshotRetentionDays * 24 * 3600 * 1000);
 
-  const expired = await Screenshot.find({ capturedAt: { $lt: cutoff } }).select("_id filePath");
+  const expired = await Screenshot.find({ capturedAt: { $lt: cutoff } }).select(
+    "_id cloudinaryPublicId"
+  );
   if (expired.length === 0) return;
 
-  let deletedFiles = 0;
+  let deletedAssets = 0;
   for (const shot of expired) {
-    const fullPath = path.join(env.screenshotUploadDir, shot.filePath);
     try {
-      await fs.promises.unlink(fullPath);
-      deletedFiles++;
-    } catch {
-      // file already gone or never existed - fine, still remove the record
+      await cloudinary.uploader.destroy(shot.cloudinaryPublicId, {
+        resource_type: "image",
+        type: "authenticated",
+      });
+      deletedAssets++;
+    } catch (err) {
+      // asset already gone or Cloudinary hiccup - still remove the DB
+      // record below so we don't retry forever on a permanently-broken ref
+      console.error(`[cleanup] Failed to delete Cloudinary asset ${shot.cloudinaryPublicId}:`, err);
     }
   }
 
   await Screenshot.deleteMany({ _id: { $in: expired.map((s) => s._id) } });
   console.log(
-    `[cleanup] Removed ${expired.length} expired screenshot records (${deletedFiles} files deleted from disk)`
+    `[cleanup] Removed ${expired.length} expired screenshot records (${deletedAssets} Cloudinary assets deleted)`
   );
 }
 

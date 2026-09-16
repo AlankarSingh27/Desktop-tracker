@@ -18,7 +18,7 @@ export const env = {
 
   jwtAdminSecret: required("JWT_ADMIN_SECRET"),
   jwtAgentSecret: required("JWT_AGENT_SECRET"),
-  jwtAdminExpiresIn: (process.env.JWT_ADMIN_EXPIRES_IN || "8h" )as StringValue,
+  jwtAdminExpiresIn: (process.env.JWT_ADMIN_EXPIRES_IN || "8h") as StringValue,
   jwtAgentExpiresIn: (process.env.JWT_AGENT_EXPIRES_IN || "30d") as StringValue,
 
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
@@ -34,4 +34,8 @@ export const env = {
   // how long activity data (sessions, metrics, downloads, idle logs) is
   // kept before MongoDB TTL indexes auto-delete it
   dataRetentionDays: parseInt(process.env.DATA_RETENTION_DAYS || "3", 10),
+
+  cloudinaryCloudName: required("CLOUDINARY_CLOUD_NAME"),
+  cloudinaryApiKey: required("CLOUDINARY_API_KEY"),
+  cloudinaryApiSecret: required("CLOUDINARY_API_SECRET"),
 };
