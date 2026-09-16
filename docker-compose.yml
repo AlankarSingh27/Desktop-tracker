@@ -1,0 +1,54 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: emp-tracker-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: emp_tracker
+
+  backend:
+    build:
+      context: ./backend
+    container_name: emp-tracker-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      - "5000:5000"
+    volumes:
+      - screenshot-data:/app/uploads/screenshots
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/emp_tracker
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET}
+      JWT_AGENT_SECRET: ${JWT_AGENT_SECRET}
+      JWT_ADMIN_EXPIRES_IN: ${JWT_ADMIN_EXPIRES_IN:-8h}
+      JWT_AGENT_EXPIRES_IN: ${JWT_AGENT_EXPIRES_IN:-30d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      AGENT_ENROLLMENT_SECRET: ${AGENT_ENROLLMENT_SECRET}
+      SCREENSHOT_UPLOAD_DIR: /app/uploads/screenshots
+      SCREENSHOT_RETENTION_DAYS: ${SCREENSHOT_RETENTION_DAYS:-30}
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000/api}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:5000}
+    container_name: emp-tracker-dashboard
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo-data:
+  screenshot-data:
