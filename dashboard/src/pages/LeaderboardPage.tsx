@@ -4,10 +4,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import { getLeaderboard } from "../api/endpoints";
 import { LeaderboardEntry } from "../types";
 
-const COLOR_ACCENT = "#cc0001";
-const COLOR_PANEL = "#003466";
-const COLOR_BORDER = "#0a4d8c";
-const COLOR_MUTED = "#9db4cc";
+const COLOR_ACCENT = "#F4B400"; // Golden Yellow
+const COLOR_PANEL = "#003466";  // Deep Blue
+const COLOR_BORDER = "#0A4D8C"; // Blue
+const COLOR_MUTED = "#9DB4CC";  // Muted Blue
 
 function formatDuration(sec: number): string {
   const h = Math.floor(sec / 3600);
