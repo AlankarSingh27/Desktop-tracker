@@ -7,7 +7,7 @@
     "postinstall": "electron-builder install-app-deps",
     "dev": "tsc -p tsconfig.json && node copy-assets.js && electron .",
     "build": "tsc -p tsconfig.json && node copy-assets.js",
-    "build:installer": "npm run build && electron-builder",
+    "build:installer": "npm run build && cross-env ELECTRON_BUILDER_CACHE=C:\\Users\\Administrator\\AppData\\Local\\electron-builder\\Cache electron-builder",
     "start": "electron ."
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.15",
+    "cross-env": "^10.1.0",
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3",
     "typescript": "^5.5.4"
@@ -31,9 +32,18 @@
   "build": {
     "appId": "com.company.emp-tracker-agent",
     "productName": "Company Activity Agent",
-    "files": ["dist/**/*", "assets/**/*"],
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg" },
-    "linux": { "target": "AppImage" }
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

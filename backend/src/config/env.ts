@@ -21,7 +21,8 @@ export const env = {
   jwtAdminExpiresIn: (process.env.JWT_ADMIN_EXPIRES_IN || "8h") as StringValue,
   jwtAgentExpiresIn: (process.env.JWT_AGENT_EXPIRES_IN || "30d") as StringValue,
 
-  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  // corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    corsOrigin: process.env.CORS_ORIGIN ,
 
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "300", 10),
